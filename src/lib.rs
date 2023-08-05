@@ -1,19 +1,19 @@
-pub use backoff_layer_impl::BackoffLayer;
 pub use backoff_layer_impl::backoff_strategies;
-pub use backoff_layer_impl::BackoffStrategy;
+pub use backoff_layer_impl::BackoffLayer;
 pub use backoff_layer_impl::BackoffService;
+pub use backoff_layer_impl::BackoffStrategy;
 
 mod backoff_layer_impl {
+    use pin_project_lite::pin_project;
     use std::future::Future;
     use std::pin::Pin;
-    use std::task::{Context, Poll, ready};
+    use std::task::{ready, Context, Poll};
     use std::time::Duration;
-    use pin_project_lite::pin_project;
-    use tower::{Layer, Service};
-    use tower::retry::{Policy, Retry, RetryLayer};
     use tower::retry::future::ResponseFuture;
+    use tower::retry::{Policy, Retry, RetryLayer};
+    use tower::{Layer, Service};
 
-    /// A layer that will reattempt to perform a service call based on a policy.
+    /// A layer that creates a service that will attempt & reattempt to perform a service call based on a policy.
     ///
     /// Each subsequent call will have a backoff period as defined by the passed strategy
     pub struct BackoffLayer<P, B> {
@@ -31,9 +31,9 @@ mod backoff_layer_impl {
     }
 
     impl<S, P, B> Layer<S> for BackoffLayer<P, B>
-        where
-            P: Clone,
-            B: Clone,
+    where
+        P: Clone,
+        B: Clone,
     {
         type Service = BackoffService<P, B, S>;
 
@@ -58,7 +58,10 @@ mod backoff_layer_impl {
     impl<P, B, S> BackoffService<P, B, S> {
         pub fn new(policy: P, backoff: B, inner: S) -> Self {
             BackoffService {
-                backoff_retry: Retry::new(BackoffPolicy::new(policy), BackoffInnerService::new(inner, backoff)),
+                backoff_retry: Retry::new(
+                    BackoffPolicy::new(policy),
+                    BackoffInnerService::new(inner, backoff),
+                ),
             }
         }
 
@@ -70,14 +73,15 @@ mod backoff_layer_impl {
     }
 
     impl<P, B, S, Req> Service<Req> for BackoffService<P, B, S>
-        where
-            P: Policy<Req, S::Response, S::Error> + Clone,
-            B: BackoffStrategy,
-            S: Service<Req> + Clone,
+    where
+        P: Policy<Req, S::Response, S::Error> + Clone,
+        B: BackoffStrategy,
+        S: Service<Req> + Clone,
     {
         type Response = S::Response;
         type Error = S::Error;
-        type Future = ResponseFuture<BackoffPolicy<P>, BackoffInnerService<S, B>, BackoffRequest<Req>>;
+        type Future =
+            ResponseFuture<BackoffPolicy<P>, BackoffInnerService<S, B>, BackoffRequest<Req>>;
 
         fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
             self.backoff_retry.poll_ready(cx)
@@ -88,7 +92,7 @@ mod backoff_layer_impl {
         }
     }
 
-    /// The inner service which performs the
+    /// The inner service which performs the backed off request
     ///
     /// Unwraps the request from the backoff wrapper & applies
     /// a backoff period to the future as necessary
@@ -105,9 +109,9 @@ mod backoff_layer_impl {
     }
 
     impl<S, B, Req> Service<BackoffRequest<Req>> for BackoffInnerService<S, B>
-        where
-            S: Service<Req>,
-            B: BackoffStrategy,
+    where
+        S: Service<Req>,
+        B: BackoffStrategy,
     {
         type Response = S::Response;
         type Error = S::Error;
@@ -127,44 +131,35 @@ mod backoff_layer_impl {
 
     #[cfg(feature = "tokio")]
     pin_project! {
-    /// A future with a sleep before it can be polled
-    pub struct BackoffFut<F> {
-        pub(crate) slept: bool,
-        #[pin]
-        pub(crate) sleep: tokio::time::Sleep,
-        #[pin]
-        fut: F,
-    }
-}
-
-    #[cfg(feature = "tokio")]
-    impl<F> BackoffFut<F> {
-        fn new(slept: bool, fut: F, duration: Duration) -> Self {
-            BackoffFut {
-                slept,
-                sleep: tokio::time::sleep(duration),
-                fut,
-            }
+        /// A future with a sleep before it can be polled
+        pub struct BackoffFut<F> {
+            slept: bool,
+            #[pin]
+            sleep: tokio::time::Sleep,
+            #[pin]
+            fut: F,
         }
     }
 
     #[cfg(feature = "async_std")]
     pin_project! {
-    /// A future with a sleep before it can be polled
-    pub struct BackoffFut<F> {
-        slept: bool,
-        #[pin]
-        sleep: Pin<Box<dyn Future<Output=()>>>,
-        #[pin]
-        fut: F,
+        /// A future with a sleep before it can be polled
+        pub struct BackoffFut<F> {
+            slept: bool,
+            #[pin]
+            sleep: Pin<Box<dyn Future<Output=()>>>,
+            #[pin]
+            fut: F,
+        }
     }
-}
 
-    #[cfg(feature = "async_std")]
     impl<F> BackoffFut<F> {
         fn new(slept: bool, fut: F, duration: Duration) -> Self {
             BackoffFut {
                 slept,
+                #[cfg(feature = "tokio")]
+                sleep: tokio::time::sleep(duration),
+                #[cfg(feature = "async_std")]
                 sleep: Box::pin(async_std::task::sleep(duration)),
                 fut,
             }
@@ -172,8 +167,8 @@ mod backoff_layer_impl {
     }
 
     impl<F> Future for BackoffFut<F>
-        where
-            F: Future,
+    where
+        F: Future,
     {
         type Output = F::Output;
 
@@ -189,7 +184,7 @@ mod backoff_layer_impl {
         }
     }
 
-    /// A policy for the Retry service to
+    /// A policy which wraps a policy for the raw request type
     #[derive(Debug, Clone)]
     pub struct BackoffPolicy<P> {
         inner: P,
@@ -202,11 +197,11 @@ mod backoff_layer_impl {
     }
 
     pin_project! {
-    pub struct IntoBackOffPolicyFut<F> {
-        #[pin]
-        fut: F
+        pub struct IntoBackOffPolicyFut<F> {
+            #[pin]
+            fut: F
+        }
     }
-}
 
     impl<F> IntoBackOffPolicyFut<F> {
         fn new(fut: F) -> Self {
@@ -214,7 +209,10 @@ mod backoff_layer_impl {
         }
     }
 
-    impl<F> Future for IntoBackOffPolicyFut<F> where F: Future {
+    impl<F> Future for IntoBackOffPolicyFut<F>
+    where
+        F: Future,
+    {
         type Output = BackoffPolicy<F::Output>;
 
         fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
@@ -224,17 +222,21 @@ mod backoff_layer_impl {
         }
     }
 
+    /// Policy for a backed off request defers to the policy for the raw request
+    /// and updates the calls count upon clone
     impl<P, Req, Res, Err> Policy<BackoffRequest<Req>, Res, Err> for BackoffPolicy<P>
-        where
-            P: Policy<Req, Res, Err>,
+    where
+        P: Policy<Req, Res, Err>,
     {
         type Future = IntoBackOffPolicyFut<P::Future>;
 
-        fn retry(&self, req: &BackoffRequest<Req>, result: Result<&Res, &Err>) -> Option<Self::Future> {
+        fn retry(
+            &self,
+            req: &BackoffRequest<Req>,
+            result: Result<&Res, &Err>,
+        ) -> Option<Self::Future> {
             let BackoffRequest { req, .. } = req;
-            self.inner
-                .retry(req, result)
-                .map(IntoBackOffPolicyFut::new)
+            self.inner.retry(req, result).map(IntoBackOffPolicyFut::new)
         }
 
         fn clone_request(&self, req: &BackoffRequest<Req>) -> Option<BackoffRequest<Req>> {
@@ -247,16 +249,17 @@ mod backoff_layer_impl {
 
     /// Request wrapper to track the number of retries of the request
     pub struct BackoffRequest<R> {
+        // 4bn is hopefully enough 🤞
         calls: u32,
         req: R,
     }
 
     impl<R> BackoffRequest<R> {
-        pub(crate) fn new(req: R) -> Self {
+        fn new(req: R) -> Self {
             BackoffRequest { calls: 0, req }
         }
 
-        pub(crate) fn new_with_calls(req: R, calls: u32) -> Self {
+        fn new_with_calls(req: R, calls: u32) -> Self {
             BackoffRequest { calls, req }
         }
     }
@@ -267,8 +270,8 @@ mod backoff_layer_impl {
     }
 
     pub mod backoff_strategies {
-        use std::time::Duration;
         use crate::backoff_layer_impl::BackoffStrategy;
+        use std::time::Duration;
 
         /// Performs backoffs in millisecond powers of 2
         #[derive(Debug, Clone)]
@@ -314,17 +317,35 @@ mod backoff_layer_impl {
                 self.duration_multiple * repeats
             }
         }
+
+        /// Backoff is a constant value
+        #[derive(Debug, Clone)]
+        pub struct ConstantBackoffStrategy {
+            duration: Duration,
+        }
+
+        impl ConstantBackoffStrategy {
+            pub fn new(duration: Duration) -> Self {
+                Self { duration }
+            }
+        }
+
+        impl BackoffStrategy for ConstantBackoffStrategy {
+            fn backoff_duration(&self, _repeats: u32) -> Duration {
+                self.duration
+            }
+        }
     }
 
     #[cfg(test)]
     mod tests {
+        use crate::backoff_layer_impl::backoff_strategies::ExponentialBackoffStrategy;
+        use crate::backoff_layer_impl::{BackoffInnerService, BackoffLayer, BackoffRequest};
         use std::error::Error;
-        use std::future::{Ready, ready};
+        use std::future::{ready, Ready};
         use tokio::select;
         use tower::retry::Policy;
         use tower::{Service, ServiceBuilder};
-        use crate::backoff_layer_impl::backoff_strategies::ExponentialBackoffStrategy;
-        use crate::backoff_layer_impl::{BackoffInnerService, BackoffLayer, BackoffRequest};
 
         #[derive(Clone)]
         struct MyPolicy {
@@ -334,14 +355,20 @@ mod backoff_layer_impl {
         impl Policy<usize, usize, &'static str> for MyPolicy {
             type Future = Ready<Self>;
 
-            fn retry(&self, _req: &usize, result: Result<&usize, &&'static str>) -> Option<Self::Future> {
+            fn retry(
+                &self,
+                _req: &usize,
+                result: Result<&usize, &&'static str>,
+            ) -> Option<Self::Future> {
                 if self.attempts_left == 0 {
                     return None;
                 }
 
                 match result {
                     Ok(_) => None,
-                    Err(_) => Some(ready(MyPolicy { attempts_left: self.attempts_left - 1 }))
+                    Err(_) => Some(ready(MyPolicy {
+                        attempts_left: self.attempts_left - 1,
+                    })),
                 }
             }
 
@@ -353,7 +380,10 @@ mod backoff_layer_impl {
         #[tokio::test]
         async fn retries_work() -> Result<(), Box<dyn Error>> {
             let mut service = ServiceBuilder::new()
-                .layer(BackoffLayer::new(MyPolicy { attempts_left: 4 }, ExponentialBackoffStrategy))
+                .layer(BackoffLayer::new(
+                    MyPolicy { attempts_left: 4 },
+                    ExponentialBackoffStrategy,
+                ))
                 .service_fn(|x: usize| async move {
                     if x % 10 == 0 {
                         Ok(x / 10)
@@ -362,12 +392,36 @@ mod backoff_layer_impl {
                     }
                 });
 
-            assert_eq!(Ok(6), service.call(60).await, "should be the next multiple of 10 divided by 10");
-            assert_eq!(Ok(6), service.call(59).await, "should be the next multiple of 10 divided by 10");
-            assert_eq!(Ok(6), service.call(58).await, "should be the next multiple of 10 divided by 10");
-            assert_eq!(Ok(6), service.call(57).await, "should be the next multiple of 10 divided by 10");
-            assert_eq!(Ok(6), service.call(56).await, "should be the next multiple of 10 divided by 10");
-            assert_eq!(Err("bad input"), service.call(55).await, "should error as ran out of retries");
+            assert_eq!(
+                Ok(6),
+                service.call(60).await,
+                "should be the next multiple of 10 divided by 10"
+            );
+            assert_eq!(
+                Ok(6),
+                service.call(59).await,
+                "should be the next multiple of 10 divided by 10"
+            );
+            assert_eq!(
+                Ok(6),
+                service.call(58).await,
+                "should be the next multiple of 10 divided by 10"
+            );
+            assert_eq!(
+                Ok(6),
+                service.call(57).await,
+                "should be the next multiple of 10 divided by 10"
+            );
+            assert_eq!(
+                Ok(6),
+                service.call(56).await,
+                "should be the next multiple of 10 divided by 10"
+            );
+            assert_eq!(
+                Err("bad input"),
+                service.call(55).await,
+                "should error as ran out of retries"
+            );
 
             Ok(())
         }
@@ -394,6 +448,8 @@ mod backoff_layer_impl {
             assert!(a.slept, "0 calls should have no backoff");
             assert!(!b.slept, "1 or more calls should have backoffs");
             assert!(!c.slept, "1 or more calls should have backoffs");
+
+            #[cfg(feature = "tokio")]
             assert!(b.sleep.deadline() < c.sleep.deadline());
 
             select! {
