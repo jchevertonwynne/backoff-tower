@@ -1,10 +1,13 @@
 [package]
 name = "backoff-tower"
-version = "0.1.2"
+version = "0.1.3"
 edition = "2021"
 license = "MIT"
 keywords = ["tower", "backoff"]
 description = "A tower layer to apply a backoff strategy to retried requests"
+homepage = "https://github.com/jchevertonwynne/backoff-tower"
+repository = "https://github.com/jchevertonwynne/backoff-tower"
+documentation = "https://docs.rs/backoff-tower/0.1.3"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
