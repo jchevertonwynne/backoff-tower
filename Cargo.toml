@@ -7,6 +7,7 @@ keywords = ["tower", "backoff"]
 description = "A tower layer to apply a backoff strategy to retried requests"
 homepage = "https://github.com/jchevertonwynne/backoff-tower"
 repository = "https://github.com/jchevertonwynne/backoff-tower"
+authors = ["Joseph Cheverton-Wynne <jchevertonwynne@gmail.com>"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
