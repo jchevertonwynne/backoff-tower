@@ -4,7 +4,7 @@ A tower layer to apply a backoff strategy to retried requests
 
 ## Overview
 
-`tower` has a builtin `RetryLayer`, but that retries requests immediately. 
+`tower` has a builtin `RetryLayer` which retries requests immediately. 
 `BackoffLayer` is a wrapper around a `RetryLayer` that applies a `BackoffStrategy` to requests
 so that there is a delay before they are retried. Both `tokio` and `async-std` are supported, with `tokio` 
 being selected via default features
