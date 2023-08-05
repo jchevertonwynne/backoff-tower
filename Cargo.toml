@@ -1,0 +1,25 @@
+[package]
+name = "backoff-tower"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+keywords = ["tower", "backoff"]
+description = "A tower layer to apply a backoff strategy to retried requests"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+async-std = { version = "1.12", optional = true }
+futures = "0.3"
+pin-project-lite = "0.2"
+tokio = { version = "1.29", optional = true }
+tower = { version = "0.4", features = ["retry"] }
+
+[features]
+default = ["tokio"]
+tokio = ["dep:tokio"]
+async_std = ["dep:async-std"]
+
+[dev-dependencies]
+tokio = { version = "1.29.1", features = ["full"] }
+tower = { version = "0.4.13", features = ["util"] }
