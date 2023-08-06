@@ -19,7 +19,7 @@ jobs:
     - name: Build
       run: cargo build --verbose
     - name: Run clippy
-      run: cargo clippy -Dwarnings
+      run: cargo clippy -- -D warnings
     - name: Run tests tokio
       run: cargo test --verbose
     - name: Run tests async-std
