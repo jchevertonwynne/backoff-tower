@@ -13,7 +13,6 @@ authors = ["Joseph Cheverton-Wynne <jchevertonwynne@gmail.com>"]
 
 [dependencies]
 async-std = { version = "1.12", optional = true }
-futures = "0.3"
 pin-project-lite = "0.2"
 tokio = { version = "1.29", optional = true }
 tower = { version = "0.4", features = ["retry"] }
