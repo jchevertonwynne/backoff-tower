@@ -51,15 +51,13 @@ pub struct BackoffService<P, S, B> {
 
 impl<P, S, B> BackoffService<P, S, B> {
     pub fn new(policy: P, inner: S, backoff: B) -> Self {
-        BackoffService {
-            backoff_retry: Retry::new(
-                BackoffPolicy::new(policy),
-                BackoffInnerService::new(inner, backoff),
-            ),
-        }
+        BackoffService::new_from_retry(Retry::new(
+            BackoffPolicy::new(policy),
+            BackoffInnerService::new(inner, backoff),
+        ))
     }
 
-    pub fn new_from_retry(retry: Retry<BackoffPolicy<P>, BackoffInnerService<S, B>>) -> Self {
+    fn new_from_retry(retry: Retry<BackoffPolicy<P>, BackoffInnerService<S, B>>) -> Self {
         BackoffService {
             backoff_retry: retry,
         }
@@ -140,7 +138,7 @@ pin_project! {
     pub struct BackoffFut<F> {
         slept: bool,
         #[pin]
-        sleep: Pin<Box<dyn Future<Output=()>>>,
+        sleep: async_io::Timer,
         #[pin]
         fut: F,
     }
@@ -153,7 +151,7 @@ impl<F> BackoffFut<F> {
             #[cfg(feature = "tokio")]
             sleep: tokio::time::sleep(duration),
             #[cfg(feature = "async_std")]
-            sleep: Box::pin(async_std::task::sleep(duration)),
+            sleep: async_io::Timer::after(duration),
             fut,
         }
     }
